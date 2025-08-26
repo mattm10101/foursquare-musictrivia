@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { supabase } from '$lib/supabaseClient.js';
+	import { goto } from '$app/navigation'; // <-- This is the missing import
 	import type { Player } from '$lib/types';
 	import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -50,7 +51,7 @@
 			.select('*')
 			.eq('id', qId)
 			.single();
-		
+
 		if (questionData) {
 			currentQuestion = questionData;
 			const options = [
@@ -75,22 +76,39 @@
 
 		const { data: playerData } = await supabase.from('players').select('*').eq('id', playerId).single();
 		if (!playerData) return;
-		
+
 		currentPlayer = playerData;
 		score = playerData.score;
 		const sessionId = playerData.game_session_id;
 
-		const { data: sessionData } = await supabase.from('game_sessions').select('*').eq('id', sessionId).single();
+		const { data: sessionData } = await supabase
+			.from('game_sessions')
+			.select('*')
+			.eq('id', sessionId)
+			.single();
 		if (!sessionData) return;
 
 		await loadQuestion(sessionData.current_question_id);
 
 		gameSubscription = supabase
 			.channel(`game_session_changes:${sessionId}`)
-			.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_sessions', filter: `id=eq.${sessionId}`},
+			.on(
+				'postgres_changes',
+				{
+					event: 'UPDATE',
+					schema: 'public',
+					table: 'game_sessions',
+					filter: `id=eq.${sessionId}`
+				},
 				(payload) => {
 					const newQuestionId = payload.new.current_question_id;
-					if (newQuestionId !== questionNumber) {
+					const newStatus = payload.new.status;
+
+					if (newStatus === 'ENDED') {
+						// Game over, clear player ID and go to homepage
+						localStorage.removeItem('playerId');
+						goto('/');
+					} else if (newQuestionId !== questionNumber) {
 						loadQuestion(newQuestionId);
 					}
 				}
@@ -105,7 +123,7 @@
 
 	async function handleAnswer(selectedArtist: string) {
 		if (!currentQuestion || !currentPlayer || answered) return;
-		
+
 		clearInterval(timerInterval); // Stop the timer when an answer is selected
 		answered = true;
 		selectedAnswer = selectedArtist;
@@ -122,7 +140,7 @@
 </script>
 
 <main class="phone-screen">
-    <div class="timer-bar" style="--time-left: {timeLeft * 10}%"></div>
+	<div class="timer-bar" style="--time-left: {timeLeft * 10}%" />
 
 	<header class="stats">
 		<div class="timer">
