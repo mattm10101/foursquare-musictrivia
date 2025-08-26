@@ -13,7 +13,7 @@
 		const playerId = localStorage.getItem('playerId');
 		if (!playerId) {
 			alert('Could not find your player ID. Please try rejoining.');
-			await goto('/join');
+			await goto('/');
 			return;
 		}
 
@@ -25,38 +25,30 @@
 
 		if (playerError || !playerData) {
 			alert('Error finding your game session. Please rejoin.');
-			await goto('/join');
+			await goto('/');
 			return;
 		}
 		const sessionId = playerData.game_session_id;
 
-		// Fetch initial players
 		const { data: initialPlayers } = await supabase
 			.from('players')
-			.select('name, player_number')
+			.select('*') // <-- UPDATED THIS LINE
 			.eq('game_session_id', sessionId)
 			.order('player_number');
 
 		players = initialPlayers || [];
 
-		// --- SUBSCRIPTION 1: Listen for NEW PLAYERS ---
 		playerSubscription = supabase
 			.channel(`players:${sessionId}`)
 			.on(
 				'postgres_changes',
-				{
-					event: 'INSERT',
-					schema: 'public',
-					table: 'players',
-					filter: `game_session_id=eq.${sessionId}`
-				},
+				{ event: 'INSERT', schema: 'public', table: 'players', filter: `game_session_id=eq.${sessionId}` },
 				(payload) => {
 					players = [...players, payload.new as Player];
 				}
 			)
 			.subscribe();
 
-		// --- SUBSCRIPTION 2: Listen for the GAME to START ---
 		gameSubscription = supabase
 			.channel(`game_sessions:${sessionId}`)
 			.on(
@@ -69,7 +61,6 @@
 				},
 				(payload) => {
 					if (payload.new.status === 'IN_PROGRESS') {
-						// The game has started! Navigate to the play screen.
 						goto('/play');
 					}
 				}
@@ -78,7 +69,6 @@
 	});
 
 	onDestroy(() => {
-		// Clean up both subscriptions when the player leaves the page
 		if (playerSubscription) {
 			supabase.removeChannel(playerSubscription);
 		}
@@ -95,7 +85,7 @@
 	<div class="player-list">
 		<h2>Players Joined:</h2>
 		<ul>
-			{#each players as player (player.player_number)}
+			{#each players as player (player.id)}
 				<li>Player {player.player_number}: {player.name}</li>
 			{/each}
 		</ul>
@@ -119,6 +109,7 @@
 	}
 	li {
 		background-color: #f0f0f0;
+		color: #333;
 		padding: 0.5rem 1rem;
 		margin-bottom: 0.5rem;
 		border-radius: 8px;

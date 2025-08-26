@@ -6,37 +6,21 @@
 	let playerName: string = '';
 	let isLoading: boolean = false;
 
-	// This is our diagnostic function
 	async function findActiveSession(): Promise<GameSession | null> {
-		console.log('--- DIAGNOSTIC TEST START ---');
-		console.log('Attempting to find active session...');
-
-		// We will grab the last 5 sessions regardless of status
+		// UPDATED QUERY: Look for a session that is either WAITING or IN_PROGRESS
 		const { data: sessions, error } = await supabase
 			.from('game_sessions')
 			.select('id, status')
+			.or('status.ilike.WAITING,status.ilike.IN_PROGRESS')
 			.order('created_at', { ascending: false })
-			.limit(5);
-
-		// Log the raw response from Supabase
-		console.log('Raw Supabase response:', { sessions, error });
+			.limit(1);
 
 		if (error) {
-			console.error('DATABASE ERROR:', error);
+			console.error('Error finding session:', error);
 			return null;
 		}
 
-		if (!sessions || sessions.length === 0) {
-			console.log('Query was successful but returned NO sessions.');
-			return null;
-		}
-
-		// Now, let's filter for a 'WAITING' session in our code
-		const waitingSession = sessions.find((s) => s.status.toUpperCase() === 'WAITING');
-		console.log('Found a waiting session in the results:', waitingSession);
-		console.log('--- DIAGNOSTIC TEST END ---');
-
-		return waitingSession || null;
+		return sessions && sessions.length > 0 ? sessions[0] : null;
 	}
 
 	async function handleJoin() {
@@ -74,7 +58,14 @@
 			if (!newPlayer) throw new Error('Failed to create player.');
 
 			localStorage.setItem('playerId', newPlayer.id);
-			await goto('/waiting-room');
+            
+            // If the game is already in progress, go straight to the play screen
+			if (session.status.toUpperCase() === 'IN_PROGRESS') {
+                await goto('/play');
+            } else {
+                await goto('/waiting-room');
+            }
+
 		} catch (error) {
 			if (error instanceof Error) {
 				alert(error.message);
