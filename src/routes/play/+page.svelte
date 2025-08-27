@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { supabase } from '$lib/supabaseClient.js';
-	import { goto } from '$app/navigation'; // <-- This is the missing import
-	import type { Player } from '$lib/types';
+	import { goto } from '$app/navigation';
+	import type { Player, GameSession } from '$lib/types';
 	import type { RealtimeChannel } from '@supabase/supabase-js';
 
 	type Question = {
@@ -105,9 +105,8 @@
 					const newStatus = payload.new.status;
 
 					if (newStatus === 'ENDED') {
-						// Game over, clear player ID and go to homepage
-						localStorage.removeItem('playerId');
-						goto('/');
+						// Game over, go to the waiting room/lobby
+						goto('/waiting-room');
 					} else if (newQuestionId !== questionNumber) {
 						loadQuestion(newQuestionId);
 					}
@@ -136,11 +135,11 @@
 			});
 			if (error) console.error('Error updating score:', error);
 		}
-	}
+	} // <-- This is the missing closing brace
 </script>
 
 <main class="phone-screen">
-	<div class="timer-bar" style="--time-left: {timeLeft * 10}%" />
+	<div class="timer-bar" style="--time-left: {timeLeft * 10}%"></div>
 
 	<header class="stats">
 		<div class="timer">
