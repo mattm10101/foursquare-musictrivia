@@ -3,42 +3,55 @@
 	import { supabase } from '$lib/supabaseClient.js';
 	import type { GameSession } from '$lib/types';
 
-	const VDJ_URL = 'http://127.0.0.1:80'; // Using port 80 as confirmed
-
 	let activeSession: GameSession | null = null;
 	let pollingInterval: NodeJS.Timeout;
 	let isPolling = false;
 	let lastKnownArtist = '';
 	let currentVdjArtist = '...';
 
-	// This function's only job is to update the database
-	async function updateDetectedArtist(artistName: string) {
+	async function updateGameWithArtist(artistName: string) {
 		if (!activeSession) return;
-		await supabase
+
+		console.log(`Updating game with new artist: ${artistName}`);
+		const { error } = await supabase
 			.from('game_sessions')
 			.update({ detected_artist: artistName })
 			.eq('id', activeSession.id);
+
+		if (error) {
+			console.error('Failed to update detected_artist:', error);
+		}
 	}
 
 	function startPolling() {
 		if (isPolling) return;
+		console.log('Polling started...');
 		isPolling = true;
 
 		pollingInterval = setInterval(async () => {
 			try {
-				// We now fetch the artist, not just the title
-				const response = await fetch(`${VDJ_URL}/query?script=get_artist`);
-				if (!response.ok) throw new Error('VDJ not responding');
-				const artist = await response.text();
+				const response = await fetch('/api/vdj', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ script: 'get_artist' })
+				});
+
+				if (!response.ok) {
+					const err = await response.json();
+					throw new Error(err.message);
+				}
+
+				const data = await response.json();
+				const artist = data.result;
 				currentVdjArtist = artist || 'No artist playing';
 
 				if (artist && artist !== lastKnownArtist) {
-					console.log(`🎤 New artist detected: ${artist}`);
 					lastKnownArtist = artist;
-					await updateDetectedArtist(artist);
+					await updateGameWithArtist(artist);
 				}
-			} catch (err) {
-				currentVdjArtist = 'Connection Error';
+			} catch (err: any) {
+				currentVdjArtist = err.message || 'Connection Error';
+				console.error(err.message);
 				stopPolling();
 			}
 		}, 3000);
@@ -47,16 +60,34 @@
 	function stopPolling() {
 		clearInterval(pollingInterval);
 		isPolling = false;
+		console.log('Polling stopped.');
 	}
 
+	// --- UPDATED onMount FUNCTION FOR DIAGNOSTICS ---
 	onMount(async () => {
-		// Find the active game session when the page loads
-		const { data: sessions } = await supabase
+		console.log('Controller onMount: Fetching all game sessions...');
+		const { data: sessions, error } = await supabase
 			.from('game_sessions')
-			.select('id, status, current_question_id')
-			.eq('status', 'IN_PROGRESS')
-			.limit(1);
-		activeSession = sessions && sessions.length > 0 ? sessions[0] : null;
+			.select('*'); // Select everything with no filters
+
+		console.log('Controller onMount response:', { sessions, error });
+
+		if (error) {
+			alert('Failed to fetch sessions: ' + error.message);
+			return;
+		}
+
+		if (sessions && sessions.length > 0) {
+			// Manually find the latest IN_PROGRESS session in our code
+			const inProgressSessions = sessions
+				.filter((s) => s.status === 'IN_PROGRESS')
+				.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+			activeSession = inProgressSessions.length > 0 ? inProgressSessions[0] : null;
+			console.log('Found active session:', activeSession);
+		} else {
+			activeSession = null;
+		}
 	});
 
 	onDestroy(() => {
@@ -69,7 +100,7 @@
 		<h1>VDJ Controller</h1>
 		<div class="status-panel">
 			<h3>Live Status</h3>
-			<p>Game Session: {activeSession ? 'IN_PROGRESS' : 'NONE'}</p>
+			<p>Game Session: {activeSession ? activeSession.status : 'NONE'}</p>
 			<p>Polling: <span class:active={isPolling}>{isPolling ? 'ACTIVE' : 'STOPPED'}</span></p>
 			<p class="song-title">Current VDJ Artist: <strong>{currentVdjArtist}</strong></p>
 			<div class="controls">
@@ -81,15 +112,61 @@
 </main>
 
 <style>
-	:global(body) { background-color: #121212; color: white; font-family: sans-serif; }
-	.container { max-width: 800px; margin: 2rem auto; padding: 2rem; background-color: #1e1e1e; border-radius: 12px; border: 1px solid #7209b7; }
-	h1, h3 { text-align: center; color: #f72585; }
-	.status-panel { border: 1px solid #333; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; }
-	p { font-size: 1.1rem; }
-	.song-title strong { color: #1DB954; }
-	.status-panel p .active { color: #1DB954; font-weight: bold; }
-	.controls { display: flex; gap: 1rem; justify-content: center; margin-top: 1rem; }
-	button { padding: 0.5rem 1rem; font-size: 1rem; border-radius: 8px; border: 2px solid #b5179e; background-color: rgba(0, 0, 0, 0.3); color: white; cursor: pointer; }
-	button:hover:not(:disabled) { border-color: #f72585; background-color: #f72585; }
-	button:disabled { opacity: 0.5; cursor: not-allowed; }
+	:global(body) {
+		background-color: #121212;
+		color: white;
+		font-family: sans-serif;
+	}
+	.container {
+		max-width: 800px;
+		margin: 2rem auto;
+		padding: 2rem;
+		background-color: #1e1e1e;
+		border-radius: 12px;
+		border: 1px solid #7209b7;
+	}
+	h1,
+	h3 {
+		text-align: center;
+		color: #f72585;
+	}
+	.status-panel {
+		border: 1px solid #333;
+		border-radius: 8px;
+		padding: 1.5rem;
+		margin-bottom: 2rem;
+	}
+	p {
+		font-size: 1.1rem;
+	}
+	.song-title strong {
+		color: #1db954;
+	}
+	.status-panel p .active {
+		color: #1db954;
+		font-weight: bold;
+	}
+	.controls {
+		display: flex;
+		gap: 1rem;
+		justify-content: center;
+		margin-top: 1rem;
+	}
+	button {
+		padding: 0.5rem 1rem;
+		font-size: 1rem;
+		border-radius: 8px;
+		border: 2px solid #b5179e;
+		background-color: rgba(0, 0, 0, 0.3);
+		color: white;
+		cursor: pointer;
+	}
+	button:hover:not(:disabled) {
+		border-color: #f72585;
+		background-color: #f72585;
+	}
+	button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
 </style>

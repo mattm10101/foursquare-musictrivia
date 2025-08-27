@@ -9,5 +9,6 @@ export type Player = {
 export type GameSession = {
 	id: string;
 	status: string;
-	current_question_id: number; // <-- This was the missing property
+	current_question_id: number;
+	detected_artist: string | null;
 };
