@@ -92,7 +92,7 @@
 
 		if (session.status === 'ENDED') {
 			viewMode = 'post-game';
-			lastGameScore = currentPlayer.score;
+			lastGameScore = currentPlayer ? currentPlayer.score : null;
 			// Listen for a new game to be created
 			gameSubscription = supabase
 				.channel('new-game-listener')
