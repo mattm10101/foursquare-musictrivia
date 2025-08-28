@@ -10,5 +10,6 @@ export type GameSession = {
 	id: string;
 	status: string;
 	current_question_id: number;
-	detected_artist: string | null; // <-- ADD THIS LINE
+	detected_artist: string | null;
+	dashboard_view: 'QR_CODE' | 'LEADERBOARD' | 'WINNER' | null; // <-- ADD THIS LINE
 };

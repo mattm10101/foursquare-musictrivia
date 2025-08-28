@@ -1,35 +1,32 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { supabase } from '$lib/supabaseClient.js';
-	import type { RealtimeChannel } from '@supabase/supabase-js'; // Corrected
-	import type { Player, GameSession } from '$lib/types'; // Corrected
+	import type { RealtimeChannel } from '@supabase/supabase-js';
+	import type { Player, GameSession } from '$lib/types';
 	import { PUBLIC_SITE_URL } from '$env/static/public';
+	import ThreeBackground from '$lib/components/ThreeBackground.svelte';
 
 	let QRCodeComponent: any = null;
 	let qrCodeValue = PUBLIC_SITE_URL;
 	let players: Player[] = [];
 	let subscription: RealtimeChannel;
 	let activeSession: GameSession | null = null;
-	let winner: Player | null = null;
+	let winners: Player[] = [];
 
 	$: if (activeSession?.status === 'ENDED' && players.length > 0) {
-		winner = players.reduce((prev, current) => (prev.score > current.score ? prev : current));
+		const maxScore = Math.max(...players.map((p) => p.score));
+		winners = players.filter((p) => p.score === maxScore);
 	} else {
-		winner = null;
+		winners = [];
 	}
 
 	async function getInitialData() {
-		const { data: sessions, error } = await supabase
+		const { data: sessions } = await supabase
 			.from('game_sessions')
 			.select('id, status, current_question_id, detected_artist')
 			.or('status.eq.WAITING,status.eq.IN_PROGRESS,status.eq.ENDED')
 			.order('created_at', { ascending: false })
 			.limit(1);
-
-		if (error) {
-			console.error('Error fetching initial session:', error);
-			return;
-		}
 
 		const session = sessions && sessions.length > 0 ? sessions[0] : null;
 		activeSession = session;
@@ -77,17 +74,20 @@
 </script>
 
 <main>
+	<ThreeBackground />
 	<div class="container">
 		{#if activeSession}
 			<header>
 				<h1 class="game-title">Music Trivia</h1>
 			</header>
 
-			{#if winner}
+			{#if winners.length > 0}
 				<div class="winner-banner">
-					<h2>🏆 WINNER 🏆</h2>
-					<p class="winner-name">{winner.name}</p>
-					<p class="winner-score">{winner.score} POINTS</p>
+					<h2>🏆 {winners.length > 1 ? 'Winners!' : 'Winner!'} 🏆</h2>
+					{#each winners as winner}
+						<p class="winner-name">{winner.name}</p>
+						<p class="winner-score">{winner.score} POINTS</p>
+					{/each}
 				</div>
 			{:else}
 				<ul class="leaderboard">
@@ -129,8 +129,11 @@
 		padding: 2rem;
 		box-sizing: border-box;
 		display: flex;
+		flex-direction: column;
 		justify-content: center;
 		align-items: center;
+		position: relative;
+		z-index: 1;
 	}
 	.game-title {
 		font-family: 'Poppins', sans-serif;
@@ -139,11 +142,16 @@
 		text-align: center;
 		text-shadow: 0 0 15px rgba(247, 37, 133, 0.7), 0 0 6px rgba(247, 37, 133, 0.9);
 	}
+	header {
+		width: 100%;
+		position: absolute;
+		top: 2rem;
+	}
 	.leaderboard {
 		list-style: none;
 		padding: 0;
+		width: 100%;
 		max-width: 700px;
-		margin: 1.5rem auto;
 	}
 	.leaderboard li {
 		display: flex;
@@ -156,6 +164,7 @@
 		font-size: 1.8rem;
 		font-weight: bold;
 		transition: all 0.2s ease-in-out;
+		backdrop-filter: blur(5px);
 	}
 	.leaderboard li:hover {
 		transform: scale(1.02);
@@ -199,7 +208,6 @@
 	}
 	.winner-banner {
 		text-align: center;
-		margin-top: 5vh;
 	}
 	.winner-banner h2 {
 		font-size: 4.5rem;
@@ -210,6 +218,7 @@
 		font-weight: bold;
 		color: white;
 		text-shadow: 0 0 25px #f72585;
+		margin: 1rem 0;
 	}
 	.winner-banner .winner-score {
 		font-size: 3.5rem;

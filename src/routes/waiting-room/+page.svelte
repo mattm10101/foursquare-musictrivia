@@ -4,14 +4,13 @@
 	import { goto } from '$app/navigation';
 	import type { RealtimeChannel } from '@supabase/supabase-js';
 	import type { Player, GameSession } from '$lib/types';
+	import { toast } from 'svelte-sonner'; // <-- UPDATED IMPORT
 
 	let players: Player[] = [];
 	let playerSubscription: RealtimeChannel;
 	let gameSubscription: RealtimeChannel;
 	let currentPlayer: Player | null = null;
 	let newName = '';
-
-	// --- NEW: State to manage the view ---
 	let viewMode: 'loading' | 'pre-game' | 'post-game' = 'loading';
 	let lastGameScore: number | null = null;
 
@@ -21,8 +20,11 @@
 			.from('players')
 			.update({ name: newName.trim() })
 			.eq('id', currentPlayer.id);
-		if (error) alert(error.message);
-		else newName = '';
+		if (error) toast.error(error.message);
+		else {
+			toast.success('Name updated!');
+			newName = '';
+		}
 	}
 
 	async function exitGame() {
@@ -36,24 +38,20 @@
 
 	async function joinNextGame(newSessionId: string) {
 		if (!currentPlayer) return;
-		// Re-join the new session and reset score
 		const { error } = await supabase
 			.from('players')
 			.update({ game_session_id: newSessionId, score: 0 })
 			.eq('id', currentPlayer.id);
-		if (error) alert(error.message);
-		else {
-			// Reload the page to enter 'pre-game' mode
-			window.location.reload();
-		}
+		if (error) toast.error(error.message);
+		else window.location.reload();
 	}
 
-	function setupSubscriptions(sessionId: string) {
+	function setupPreGameSubscriptions(sessionId: string) {
 		if (playerSubscription) supabase.removeChannel(playerSubscription);
 		playerSubscription = supabase
 			.channel(`players:${sessionId}`)
 			.on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => {
-				loadPlayers(sessionId); // Reload all players on any change
+				loadPlayers(sessionId);
 			})
 			.subscribe();
 
@@ -61,13 +59,14 @@
 		gameSubscription = supabase
 			.channel(`game_sessions:${sessionId}`)
 			.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_sessions' }, (payload) => {
-				if (payload.new.status === 'IN_PROGRESS') {
-					goto('/play');
+					if (payload.new.status === 'IN_PROGRESS') {
+						goto('/play');
+					}
 				}
-			})
+			)
 			.subscribe();
 	}
-	
+
 	async function loadPlayers(sessionId: string) {
 		const { data } = await supabase.from('players').select('*').eq('game_session_id', sessionId);
 		players = data || [];
@@ -80,32 +79,56 @@
 			return;
 		}
 
-		const { data: playerData } = await supabase.from('players').select('*, game_sessions(*)').eq('id', playerId).single();
-		if (!playerData || !playerData.game_sessions) {
+		// --- UPDATED QUERY LOGIC ---
+		// Step 1: Get the player's own data first.
+		const { data: playerData, error: playerError } = await supabase
+			.from('players')
+			.select('*')
+			.eq('id', playerId)
+			.single();
+
+		if (playerError || !playerData) {
+			toast.error('Could not find your player data. Please rejoin.');
+			localStorage.removeItem('playerId');
+			goto('/');
+			return;
+		}
+		currentPlayer = playerData;
+
+		// Step 2: Use the player's game_session_id to get the session data.
+		const { data: sessionData, error: sessionError } = await supabase
+			.from('game_sessions')
+			.select('*')
+			.eq('id', playerData.game_session_id)
+			.single();
+
+		if (sessionError || !sessionData) {
+			toast.error('Could not find your game session. Please rejoin.');
 			localStorage.removeItem('playerId');
 			goto('/');
 			return;
 		}
 
-		currentPlayer = playerData;
-		const session = playerData.game_sessions as GameSession;
+		const session = sessionData;
+		// --- END OF UPDATED LOGIC ---
 
 		if (session.status === 'ENDED') {
 			viewMode = 'post-game';
 			lastGameScore = currentPlayer ? currentPlayer.score : null;
-			// Listen for a new game to be created
 			gameSubscription = supabase
 				.channel('new-game-listener')
-				.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_sessions' }, (payload) => {
-					if (payload.new.status === 'WAITING') {
-						joinNextGame(payload.new.id);
+				.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_sessions' },
+					(payload) => {
+						if (payload.new.status === 'WAITING') {
+							joinNextGame(payload.new.id);
+						}
 					}
-				})
+				)
 				.subscribe();
 		} else {
 			viewMode = 'pre-game';
 			await loadPlayers(session.id);
-			setupSubscriptions(session.id);
+			setupPreGameSubscriptions(session.id);
 		}
 	});
 
@@ -146,13 +169,13 @@
 </main>
 
 <style>
-	main { font-family: sans-serif; text-align: center; padding: 2rem; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #121212; color: white; }
+	main { font-family: sans-serif; text-align: center; padding: 2rem; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #121212; color: white; box-sizing: border-box; }
 	h1 { color: #f72585; font-size: 3rem; }
 	.final-score { font-size: 1.5rem; margin: 2rem 0; }
 	.rename-form { margin: 2rem 0; display: flex; justify-content: center; gap: 0.5rem; }
-	.rename-form input { padding: 0.5rem; border-radius: 4px; border: 1px solid #ccc; }
-	.rename-form button { padding: 0.5rem 1rem; border-radius: 4px; border: none; background-color: #1DB954; color: white; cursor: pointer; }
-	.exit-button { margin-top: 1rem; background-color: #ff4136; }
+	.rename-form input { padding: 0.5rem; border-radius: 4px; border: 1px solid #ccc; font-size: 1rem; }
+	.rename-form button { padding: 0.5rem 1rem; border-radius: 4px; border: none; background-color: #1DB954; color: white; cursor: pointer; font-size: 1rem; }
+	.exit-button { margin-top: 1rem; background-color: #ff4136; padding: 0.5rem 1rem; border-radius: 4px; border: none; color: white; cursor: pointer; font-size: 1rem; }
 	.player-list { margin-top: 2rem; display: inline-block; text-align: left; }
 	ul { list-style: none; padding: 0; }
 	li { background-color: #3a0ca3; color: white; padding: 0.5rem 1rem; margin-bottom: 0.5rem; border-radius: 8px; }
