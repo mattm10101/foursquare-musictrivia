@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import type { RealtimeChannel } from '@supabase/supabase-js';
 	import type { Player, GameSession } from '$lib/types';
-	import { toast } from 'svelte-sonner'; // <-- UPDATED IMPORT
+	import { toast } from 'svelte-sonner';
 
 	let players: Player[] = [];
 	let playerSubscription: RealtimeChannel;
@@ -108,13 +108,11 @@
 			goto('/');
 			return;
 		}
-
-		const session = sessionData;
 		// --- END OF UPDATED LOGIC ---
 
-		if (session.status === 'ENDED') {
+		if (sessionData.status === 'ENDED') {
 			viewMode = 'post-game';
-			lastGameScore = currentPlayer ? currentPlayer.score : null;
+			lastGameScore = currentPlayer.score;
 			gameSubscription = supabase
 				.channel('new-game-listener')
 				.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_sessions' },
@@ -127,8 +125,8 @@
 				.subscribe();
 		} else {
 			viewMode = 'pre-game';
-			await loadPlayers(session.id);
-			setupPreGameSubscriptions(session.id);
+			await loadPlayers(sessionData.id);
+			setupPreGameSubscriptions(sessionData.id);
 		}
 	});
 

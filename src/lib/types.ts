@@ -11,5 +11,6 @@ export type GameSession = {
 	status: string;
 	current_question_id: number;
 	detected_artist: string | null;
-	dashboard_view: 'QR_CODE' | 'LEADERBOARD' | 'WINNER' | null; // <-- ADD THIS LINE
+	// ADDED 'INSTRUCTIONS' to the list of valid types
+	dashboard_view: 'QR_CODE' | 'LEADERBOARD' | 'WINNER' | 'INSTRUCTIONS' | null;
 };
