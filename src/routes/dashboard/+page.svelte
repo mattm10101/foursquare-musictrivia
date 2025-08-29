@@ -4,8 +4,10 @@
 	import type { RealtimeChannel } from '@supabase/supabase-js';
 	import type { Player, GameSession } from '$lib/types';
 	import { PUBLIC_SITE_URL } from '$env/static/public';
+	import './styles.css'; // Import the new CSS file
 
 	let QRCodeComponent: any = null;
+	let qrCodeValue = PUBLIC_SITE_URL;
 	let players: Player[] = [];
 	let activeSession: GameSession | null = null;
 	let winners: Player[] = [];
@@ -22,12 +24,17 @@
 	}
 
 	async function getInitialState() {
-		const { data: sessions } = await supabase
+		const { data: sessions, error } = await supabase
 			.from('game_sessions')
 			.select('*')
 			.in('status', ['WAITING', 'IN_PROGRESS', 'ENDED'])
 			.order('created_at', { ascending: false })
 			.limit(1);
+		
+		if (error){
+			console.error(error);
+			return;
+		}
 
 		if (sessions && sessions.length > 0) {
 			const session = sessions[0];
@@ -89,8 +96,10 @@
 				<h1 class="game-title">Music Trivia! 🎶</h1>
 				<p class="tagline">Scan with your phone to join!</p>
 				{#if QRCodeComponent}
-					<div class="qr-code-container">
-						<svelte:component this={QRCodeComponent} value={PUBLIC_SITE_URL} size={250} />
+					<div class="qr-code-animated-border">
+						<div class="qr-code-container">
+							<svelte:component this={QRCodeComponent} value={PUBLIC_SITE_URL} size={250} />
+						</div>
 					</div>
 				{/if}
 			</div>
@@ -133,92 +142,3 @@
 		{/if}
 	</div>
 </main>
-
-<style>
-	@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Open+Sans:wght@400;600&display=swap');
-	:global(body) {
-		background-color: #000;
-		color: white;
-		font-family: 'Open Sans', sans-serif;
-		overflow: hidden;
-	}
-	.container {
-		width: 100vw;
-		height: 100vh;
-		padding: 2rem;
-		box-sizing: border-box;
-	}
-	.view-wrapper {
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		align-items: center;
-		height: 100%;
-	}
-	.game-title {
-		font-family: 'Poppins', sans-serif;
-		font-size: 4rem;
-		color: #f0f8ff;
-		text-align: center;
-		text-shadow: 0 0 15px rgba(247, 37, 133, 0.7);
-	}
-	.leaderboard {
-		list-style: none;
-		padding: 0;
-		width: 100%;
-		max-width: 900px;
-	}
-	.leaderboard li {
-		display: flex;
-		align-items: center;
-		background-color: rgba(255, 255, 255, 0.05);
-		margin-bottom: 0.8rem;
-		padding: 1rem;
-		border-radius: 8px;
-		border: 1px solid #7209b7;
-		font-size: 1.8rem;
-		font-weight: bold;
-		backdrop-filter: blur(5px);
-	}
-	.leaderboard .rank {
-		color: #f72585;
-		margin-right: 1.5rem;
-		min-width: 40px;
-	}
-	.leaderboard .name {
-		flex-grow: 1;
-		text-align: left;
-	}
-	.leaderboard .score {
-		color: #1db954;
-	}
-	.tagline {
-		font-size: 2.2rem;
-		color: #ccc;
-		margin-top: 1rem;
-	}
-	.instructions p {
-		font-size: 2rem;
-		line-height: 1.6;
-	}
-	.qr-code-container {
-		background-color: white;
-		padding: 15px;
-		border-radius: 12px;
-		margin-top: 2rem;
-	}
-	.winner-banner h2 {
-		font-size: 4.5rem;
-		color: #1db954;
-	}
-	.winner-banner .winner-name {
-		font-size: 6rem;
-		font-weight: bold;
-		color: white;
-		text-shadow: 0 0 25px #f72585;
-	}
-	.winner-banner .winner-score {
-		font-size: 3.5rem;
-		color: #1db954;
-	}
-</style>

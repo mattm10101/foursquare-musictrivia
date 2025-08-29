@@ -1,0 +1,140 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Open+Sans:wght@400;600&display=swap');
+
+body {
+	background-color: #000;
+	color: white;
+	font-family: 'Open Sans', sans-serif;
+	overflow: hidden;
+}
+
+.container {
+	width: 100vw;
+	height: 100vh;
+	padding: 2rem;
+	box-sizing: border-box;
+	background: linear-gradient(160deg, #3a0ca3, #0c001f);
+}
+
+.view-wrapper {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	height: 100%;
+}
+
+.game-title {
+	font-family: 'Poppins', sans-serif;
+	font-size: 4rem;
+	color: #f0f8ff;
+	text-align: center;
+	text-shadow: 0 0 15px rgba(247, 37, 133, 0.7);
+}
+
+.leaderboard {
+	list-style: none;
+	padding: 0;
+	width: 100%;
+	max-width: 900px;
+}
+
+.leaderboard li {
+	display: flex;
+	align-items: center;
+	background-color: rgba(255, 255, 255, 0.05);
+	margin-bottom: 0.8rem;
+	padding: 1rem;
+	border-radius: 8px;
+	border: 1px solid #7209b7;
+	font-size: 1.8rem;
+	font-weight: bold;
+	backdrop-filter: blur(5px);
+}
+
+.leaderboard .rank {
+	color: #f72585;
+	margin-right: 1.5rem;
+	min-width: 40px;
+}
+
+.leaderboard .name {
+	flex-grow: 1;
+	text-align: left;
+}
+
+.leaderboard .score {
+	color: #1db954;
+}
+
+.waiting-wrapper .game-title {
+	font-size: 6rem;
+	margin-bottom: 0.5rem;
+}
+
+.waiting-wrapper .tagline {
+	font-size: 2.2rem;
+	color: #ccc;
+	margin-top: 1rem;
+	margin-bottom: 2rem;
+}
+
+.instructions p {
+	font-size: 2rem;
+	line-height: 1.6;
+}
+
+/* QR Code Styles with Animated Border */
+@keyframes spin {
+	to {
+		--angle: 360deg;
+	}
+}
+
+@property --angle {
+	syntax: '<angle>';
+	initial-value: 0deg;
+	inherits: false;
+}
+
+.qr-code-animated-border {
+	--border-size: 5px;
+	--angle: 0deg;
+	position: relative;
+	padding: var(--border-size);
+	border-radius: 20px;
+	background: conic-gradient(
+		from var(--angle),
+		#f72585,
+		#b5179e,
+		#7209b7,
+		#560bad,
+		#480ca8,
+		#b5179e,
+		#f72585
+	);
+	animation: spin 3s linear infinite;
+}
+
+.qr-code-container {
+	background-color: white;
+	padding: 15px;
+	border-radius: 16px;
+}
+
+/* Winner Banner Styles */
+.winner-banner h2 {
+	font-size: 4.5rem;
+	color: #1db954;
+}
+
+.winner-banner .winner-name {
+	font-size: 6rem;
+	font-weight: bold;
+	color: white;
+	text-shadow: 0 0 25px #f72585;
+}
+
+.winner-banner .winner-score {
+	font-size: 3.5rem;
+	color: #1db954;
+}
